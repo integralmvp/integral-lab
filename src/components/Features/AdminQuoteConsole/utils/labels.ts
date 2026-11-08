@@ -24,8 +24,7 @@ export const ITEM_UNSPECIFIED = '(품목 미지정)'
  * 자유 입력의 오타·공백으로 조건행을 놓치는 문제를 원천 차단.
  */
 export const ADMIN_ITEM_OPTIONS = [
-  '파이프', '철근', '각관', '농자재', '사료', '코일', '패드', '비료',
-  '합판', '석재', '벽돌', '맥아', 'HB', '가설재', '옹벽',
+  '품목A', '품목B', '품목C', '품목D', '품목E',
 ] as const
 
 export function formatWon(value: number): string {
