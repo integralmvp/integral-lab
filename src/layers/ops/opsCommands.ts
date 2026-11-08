@@ -5,7 +5,7 @@
 import type { Actor, Order, OrderType } from '../../types/domain/ops'
 import { deriveLegs, quoteLeg, LEG_TRANSITION_EVENT } from '../../engine/ops'
 import { placeholderSource } from '../../data/lab/placeholderPriceTable'
-import { SEED_ORDERS } from '../../data/lab/seedOrders'
+import { SEED_SCENARIOS } from '../../data/lab/seedOrders'
 import { emit, eventRepo, legRepo, notify, orderRepo } from '../../infra/storage/ops'
 
 /** 현재 단가 소스 (교체 접점) */
@@ -22,13 +22,16 @@ function nextOrderId(): string {
 }
 
 /** 접수 확정: Order + Leg 생성 → ORDER_RECEIVED → 구간별 견적 이벤트 */
-export function registerOrder(input: NewOrderInput, opts: { id?: string; at?: string; silent?: boolean } = {}): Order {
+export function registerOrder(
+  input: NewOrderInput,
+  opts: { id?: string; at?: string; silent?: boolean; skipQuote?: boolean } = {}
+): Order {
   const order: Order = { ...input, id: opts.id ?? nextOrderId(), created_at: opts.at ?? new Date().toISOString() }
   orderRepo.insert(order)
   const legs = deriveLegs(order)
   legRepo.insertMany(legs)
   emit({ type: 'ORDER_RECEIVED', actor: '관리자', order_id: order.id, at: order.created_at }, { silent: true })
-  quoteOrder(order.id, { silent: true, at: opts.at })
+  if (!opts.skipQuote) quoteOrder(order.id, { silent: true, at: opts.at })
   if (!opts.silent) notify()
   return order
 }
@@ -56,15 +59,20 @@ export function quoteOrder(orderId: string, opts: { silent?: boolean; at?: strin
 }
 
 /** Leg 다음 단계로 진행 (배차 시 차량 라벨) */
-export function advanceLeg(legId: string, actor: Actor, vehicleLabel?: string): boolean {
+export function advanceLeg(
+  legId: string,
+  actor: Actor,
+  vehicleLabel?: string,
+  opts: { at?: string; silent?: boolean } = {}
+): boolean {
   const leg = legRepo.get(legId)
   if (!leg) return false
   const type = LEG_TRANSITION_EVENT[leg.status]
   if (!type) return false
   const payload = type === 'LEG_DISPATCHED' ? { vehicle_label: vehicleLabel || leg.quote?.matched_vehicle || '차량 미지정' } : undefined
-  const ev = emit({ type, actor, order_id: leg.order_id, leg_id: leg.id, payload })
+  const ev = emit({ type, actor, order_id: leg.order_id, leg_id: leg.id, payload, at: opts.at }, { silent: opts.silent })
   if (ev && type === 'LEG_DONE' && legRepo.byOrder(leg.order_id).every(l => l.status === 'DONE')) {
-    emit({ type: 'ORDER_COMPLETED', actor: '시스템', order_id: leg.order_id })
+    emit({ type: 'ORDER_COMPLETED', actor: '시스템', order_id: leg.order_id, at: opts.at }, { silent: opts.silent })
   }
   return ev !== null
 }
@@ -91,11 +99,23 @@ export function resetDemo(): void {
 export function seedIfEmpty(force = false): void {
   if (!force && orderRepo.list().length > 0) return
   const now = Date.now()
-  SEED_ORDERS.forEach((s, i) => {
-    const at = new Date(now - (SEED_ORDERS.length - i) * 3 * 60000).toISOString()
-    registerOrder(s, { id: s.id, at, silent: true })
+  const n = SEED_SCENARIOS.length
+  SEED_SCENARIOS.forEach(({ order, stage }, i) => {
+    const at = new Date(now - (n - i) * 3 * 60000).toISOString()
+    registerOrder(order, { id: order.id, at, silent: true, skipQuote: stage === 'RECEIVED_ONLY' })
+    if (stage === 'ALL_DONE') playToDone(order.id, at)
   })
   notify()
+}
+
+/** 시드 재생: 전 구간을 이벤트 발행 경로로 끝까지 진행 (상태 직접 덮어쓰기 금지) */
+function playToDone(orderId: string, at: string): void {
+  for (const leg of legRepo.byOrder(orderId)) {
+    for (let step = 0; step < 4; step++) {
+      const actor: Actor = step === 0 ? '관리자' : '현장'
+      if (!advanceLeg(leg.id, actor, undefined, { at, silent: true })) break
+    }
+  }
 }
 
 export const ORDER_TYPES: OrderType[] = ['차량형', '중량형', '컨테이너형', '자동화물형']

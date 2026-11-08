@@ -1,10 +1,19 @@
 /**
  * 시연용 접수건 (가상 거래처·품목). created_at은 시드 시점에 채운다.
- * 화주앱 유입 3 + 오프라인 3 / 중량·컨테이너·차량·자동화물 / 단가 미등록 1건(자동화물형 도내).
+ * 화주앱 유입 3 + 오프라인 5 / 중량·컨테이너·차량·자동화물 / 단가 미등록 1건(자동화물형 도내).
+ * ORD-007 = 접수 직후 미견적(R1), ORD-008 = 전 구간 하차 완료·정산 미확정(R5, 정산 창).
  */
 import type { Order } from '../../types/domain/ops'
 
 export type SeedOrder = Omit<Order, 'created_at'>
+
+/** 시드 시나리오: 접수 후 어디까지 진행된 상태로 재생할지 (전부 emit 경로로 재생) */
+export type SeedStage = 'QUOTED' | 'RECEIVED_ONLY' | 'ALL_DONE'
+
+export interface SeedScenario {
+  order: SeedOrder
+  stage: SeedStage
+}
 
 export const SEED_ORDERS: SeedOrder[] = [
   {
@@ -37,4 +46,30 @@ export const SEED_ORDERS: SeedOrder[] = [
     상차: '제주시 애월', 하차: '제주시 조천', type: '차량형', 운송구분: '시내',
     cargo: { length_mm: 2000, width_mm: 1000, height_mm: 800, weight_kg: 200 }, 차량대수: 1,
   },
+]
+
+/** 추가 시나리오 시드 (기존 6건 의미 불변) */
+export const SEED_EXTRA: SeedScenario[] = [
+  {
+    stage: 'RECEIVED_ONLY',
+    order: {
+      id: 'ORD-007', intake: 'OFFLINE', 거래처: '가상상사F', 품목: '품목C',
+      상차: '제주시 연동', 하차: '서귀포 중문', type: '차량형', 운송구분: '시외',
+      cargo: { length_mm: 3000, width_mm: 1200, height_mm: 1000, weight_kg: 800 }, 차량대수: 1,
+    },
+  },
+  {
+    stage: 'ALL_DONE',
+    order: {
+      id: 'ORD-008', intake: 'OFFLINE', 거래처: '가상상사B', 품목: '품목B',
+      상차: '제주시 화북', 하차: '제주시 한림', type: '중량형',
+      cargo: { length_mm: 2000, width_mm: 1000, height_mm: 1000, weight_kg: 5000 }, 차량대수: 1, 운송중량_ton: 5,
+    },
+  },
+]
+
+/** 재생 순서대로의 전체 시나리오 */
+export const SEED_SCENARIOS: SeedScenario[] = [
+  ...SEED_ORDERS.map(order => ({ order, stage: 'QUOTED' as const })),
+  ...SEED_EXTRA,
 ]
