@@ -40,7 +40,7 @@ export interface EmitInput {
  * 이벤트 발행. Leg 전이가 허용되지 않으면 거부(null 반환, 이벤트 미발행).
  */
 export function emit(input: EmitInput, opts: { silent?: boolean } = {}): OpsEvent | null {
-  const ev: OpsEvent = { id: makeOpsEventId(), at: input.at ?? new Date().toISOString(), ...input }
+  const ev: OpsEvent = { ...input, id: makeOpsEventId(), at: input.at ?? new Date().toISOString() }
   if (ev.leg_id) {
     const leg = legRepo.get(ev.leg_id)
     if (!leg || !canApply(leg, ev.type)) return null

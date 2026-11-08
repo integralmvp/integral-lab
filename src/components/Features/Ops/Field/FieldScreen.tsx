@@ -44,7 +44,10 @@ export default function FieldScreen({ data }: { data: OpsData }) {
       </div>
       {next ? (
         <button
-          onClick={() => advanceLeg(selected.id, '현장')}
+          onClick={() => {
+            setPickedId(selected.id)
+            advanceLeg(selected.id, '현장')
+          }}
           className="w-full py-6 rounded-2xl bg-blue-600 text-white text-2xl font-bold active:bg-blue-700"
         >
           {next}
