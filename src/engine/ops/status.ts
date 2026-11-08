@@ -47,6 +47,25 @@ export function applyEventToLeg(leg: Leg, ev: OpsEvent): Leg {
   return { ...leg, status: t.to, 수단_세부: p?.vehicle_label ?? leg.수단_세부 }
 }
 
+export interface DispatchCheck {
+  ok: boolean
+  /** 배차 불가 사유 (ok면 null) */
+  reason: string | null
+}
+
+/**
+ * 구간 순서 가드 (R4 정책 강제): 같은 Order에서 seq가 앞선 구간이 모두 DONE이어야 배차 가능.
+ * orderLegs = 같은 Order의 전체 구간 (순서 무관)
+ */
+export function canDispatchLeg(leg: Leg, orderLegs: Leg[]): DispatchCheck {
+  if (leg.status !== 'WAITING') return { ok: false, reason: '배차 대기 상태가 아닙니다' }
+  const blocking = orderLegs
+    .filter(l => l.order_id === leg.order_id && l.seq < leg.seq && l.status !== 'DONE')
+    .sort((a, b) => a.seq - b.seq)[0]
+  if (blocking) return { ok: false, reason: `이전 구간(${blocking.단계}) 완료 후 배차 가능` }
+  return { ok: true, reason: null }
+}
+
 export function isQuoted(legs: Leg[]): boolean {
   return legs.length > 0 && legs.every(l => l.quote !== null && !l.quote.unregistered)
 }

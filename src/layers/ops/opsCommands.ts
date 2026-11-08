@@ -3,7 +3,7 @@
  * engine(순수 계산) + repo/bus(영속) 조합. UI는 이 명령만 호출한다.
  */
 import type { Actor, Order, OrderType } from '../../types/domain/ops'
-import { deriveLegs, quoteLeg, LEG_TRANSITION_EVENT } from '../../engine/ops'
+import { deriveLegs, quoteLeg, LEG_TRANSITION_EVENT, canDispatchLeg } from '../../engine/ops'
 import { placeholderSource } from '../../data/lab/placeholderPriceTable'
 import { SEED_SCENARIOS } from '../../data/lab/seedOrders'
 import { emit, eventRepo, legRepo, notify, orderRepo } from '../../infra/storage/ops'
@@ -69,6 +69,7 @@ export function advanceLeg(
   if (!leg) return false
   const type = LEG_TRANSITION_EVENT[leg.status]
   if (!type) return false
+  if (type === 'LEG_DISPATCHED' && !canDispatchLeg(leg, legRepo.byOrder(leg.order_id)).ok) return false
   const payload = type === 'LEG_DISPATCHED' ? { vehicle_label: vehicleLabel || leg.quote?.matched_vehicle || '차량 미지정' } : undefined
   const ev = emit({ type, actor, order_id: leg.order_id, leg_id: leg.id, payload, at: opts.at }, { silent: opts.silent })
   if (ev && type === 'LEG_DONE' && legRepo.byOrder(leg.order_id).every(l => l.status === 'DONE')) {

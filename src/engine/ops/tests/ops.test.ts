@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Leg, OpsEvent, Order, PriceRow } from '../../../types/domain/ops'
 import {
-  convertCubes, deriveLegs, lookupPrice, quoteLeg, deriveOrderStatus, deriveMessages, applyEventToLeg, canApply,
+  convertCubes, deriveLegs, lookupPrice, quoteLeg, deriveOrderStatus, deriveMessages, applyEventToLeg, canApply, canDispatchLeg,
 } from '../index'
 import { placeholderSource } from '../../../data/lab/placeholderPriceTable'
 
@@ -126,5 +126,28 @@ describe('deriveMessages', () => {
     const legs3 = legs.map(l => ({ ...l, status: 'DONE' as const }))
     msgs = deriveMessages({ orders: [o], legs: legs3, events: q, now })
     expect(msgs.some(m => m.rule_id === 'R5')).toBe(true)
+  })
+})
+
+describe('canDispatchLeg (구간 순서 가드)', () => {
+  const legs = deriveLegs(base)
+  it('첫 구간은 배차 가능', () => {
+    expect(canDispatchLeg(legs[0], legs)).toEqual({ ok: true, reason: null })
+  })
+  it('앞 구간이 DONE이 아니면 뒤 구간 배차 불가 + 사유', () => {
+    const r = canDispatchLeg(legs[2], legs)
+    expect(r.ok).toBe(false)
+    expect(r.reason).toContain('내륙')
+    const partial = [{ ...legs[0], status: 'DONE' as const }, { ...legs[1], status: 'IN_TRANSIT' as const }, legs[2]]
+    expect(canDispatchLeg(partial[2], partial).reason).toContain('선사')
+  })
+  it('앞 구간 전부 DONE이면 가능, WAITING 아니면 불가', () => {
+    const done = [{ ...legs[0], status: 'DONE' as const }, { ...legs[1], status: 'DONE' as const }, legs[2]]
+    expect(canDispatchLeg(done[2], done).ok).toBe(true)
+    expect(canDispatchLeg({ ...legs[0], status: 'DISPATCHED' }, legs).ok).toBe(false)
+  })
+  it('다른 주문의 구간은 영향 없음', () => {
+    const other = deriveLegs({ ...base, id: 'T2' })
+    expect(canDispatchLeg(legs[0], [...legs, ...other]).ok).toBe(true)
   })
 })

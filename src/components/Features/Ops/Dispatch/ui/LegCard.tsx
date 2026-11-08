@@ -4,7 +4,7 @@ import { fmtMoney, LEG_NEXT_ACTION } from '../../common'
 import type { LegCardModel } from '../utils/grouping'
 
 export default function LegCard({ model }: { model: LegCardModel }) {
-  const { leg, 거래처, prevPending } = model
+  const { leg, 거래처, dispatchBlockedReason } = model
   const [label, setLabel] = useState('')
   const next = LEG_NEXT_ACTION[leg.status]
   const unreg = leg.quote?.unregistered
@@ -20,18 +20,21 @@ export default function LegCard({ model }: { model: LegCardModel }) {
       <div className={unreg ? 'text-red-600 font-semibold' : 'text-gray-800'}>
         {unreg ? '단가 미등록' : fmtMoney(leg.quote?.amount)}
       </div>
-      {prevPending && <div className="text-gray-400">이전 구간 대기</div>}
+      {dispatchBlockedReason && <div className="text-amber-700">{dispatchBlockedReason}</div>}
       {leg.status === 'WAITING' ? (
         <div className="flex gap-1">
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder={leg.quote?.matched_vehicle ?? '차량'}
-            className="min-w-0 flex-1 border border-gray-300 rounded px-1.5 py-1"
+            disabled={!!dispatchBlockedReason}
+            className="min-w-0 flex-1 border border-gray-300 rounded px-1.5 py-1 disabled:bg-gray-100"
           />
           <button
             onClick={() => advanceLeg(leg.id, '관리자', label.trim() || leg.quote?.matched_vehicle || undefined)}
-            className="px-2 py-1 rounded bg-blue-600 text-white font-semibold"
+            disabled={!!dispatchBlockedReason}
+            title={dispatchBlockedReason ?? undefined}
+            className="px-2 py-1 rounded bg-blue-600 text-white font-semibold disabled:bg-gray-300 disabled:cursor-not-allowed"
           >
             {next}
           </button>

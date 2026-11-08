@@ -10,11 +10,13 @@ export {
   LEG_TRANSITION_EVENT,
   nextLegStatus,
   canApply,
+  canDispatchLeg,
   applyEventToLeg,
   isQuoted,
   deriveOrderStatus,
   settlementFromEvents,
   isCancelled,
 } from './status'
+export type { DispatchCheck } from './status'
 export { DEMO_SLA_MIN, RULES, deriveMessages } from './rules'
 export type { Rule, RuleContext } from './rules'
